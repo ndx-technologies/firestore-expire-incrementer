@@ -51,12 +51,15 @@ func main() {
 		DB:       redisDB,
 	})
 
-	keys, err := rdb.SMembers(ctx, redisSetKey).Result()
+	ks, err := rdb.SMembers(ctx, redisSetKey).Result()
 	if err != nil {
 		log.Fatal(err)
 	}
+	if len(ks) == 0 {
+		return
+	}
 
-	for _, key := range keys {
+	for _, key := range ks {
 		doc, err := firestoreClient.Collection(firestoreCollection).Doc(key).Get(ctx)
 		if err != nil {
 			if status.Code(err) == grpccodes.NotFound {
@@ -80,7 +83,12 @@ func main() {
 		}
 	}
 
-	if err := rdb.Del(ctx, keys...).Err(); err != nil {
+	ksAny := make([]any, len(ks))
+	for i, v := range ks {
+		ksAny[i] = v
+	}
+
+	if err := rdb.SRem(ctx, redisSetKey, ksAny...).Err(); err != nil {
 		log.Fatal(err)
 	}
 }
