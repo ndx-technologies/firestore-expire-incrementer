@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	cloud.google.com/go/firestore v1.18.0
-	github.com/redis/go-redis/v9 v9.12.1
+	github.com/redis/go-redis/v9 v9.14.0
 	google.golang.org/grpc v1.75.0
 )
 
