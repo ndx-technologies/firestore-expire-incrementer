@@ -16,25 +16,24 @@ import (
 func main() {
 	var (
 		projectID           string
-		redisAddr           string
-		redisUser           string
-		redisPassword       string
-		redisDB             int
+		redisURL            string
 		redisSetKey         string
 		firestoreCollection string
 		firestoreExpireKey  string
 		expireIncrement     time.Duration
 	)
-	flag.StringVar(&projectID, "project-id", os.Getenv("PROJECT_ID"), "GCP project ID")
-	flag.StringVar(&firestoreCollection, "firestore-collection", os.Getenv("FIRESTORE_COLLECTION"), "Firestore collection")
-	flag.StringVar(&firestoreExpireKey, "firestore-expire-key", os.Getenv("FIRESTORE_EXPIRE_KEY"), "Firestore expire key")
-	flag.StringVar(&redisAddr, "redis-addr", os.Getenv("REDIS_ADDR"), "Redis address")
-	flag.StringVar(&redisUser, "redis-user", os.Getenv("REDIS_USER"), "Redis user")
-	flag.StringVar(&redisPassword, "redis-password", os.Getenv("REDIS_PASSWORD"), "Redis password")
-	flag.IntVar(&redisDB, "redis-db", 0, "redis db")
-	flag.StringVar(&redisSetKey, "redis-set-key", os.Getenv("REDIS_SET_KEY"), "Redis set key")
-	flag.DurationVar(&expireIncrement, "expire-increment", 0, "expire increment")
+	flag.StringVar(&projectID, "project_id", os.Getenv("PROJECT_ID"), "GCP project ID")
+	flag.StringVar(&firestoreCollection, "firestore_collection", "", "Firestore collection")
+	flag.StringVar(&firestoreExpireKey, "firestore_expire_key", "", "Firestore expire key")
+	flag.StringVar(&redisURL, "redis", "", "Redis URL")
+	flag.StringVar(&redisSetKey, "redis_set_key", "", "Redis set key")
+	flag.DurationVar(&expireIncrement, "expire_increment", 0, "expire increment durtation (e.g. 5m, 24h)")
 	flag.Parse()
+
+	if projectID == "" || firestoreCollection == "" || firestoreExpireKey == "" || redisURL == "" || redisSetKey == "" || expireIncrement <= 0 {
+		flag.Usage()
+		log.Fatal("missing required args")
+	}
 
 	ctx := context.Background()
 
@@ -44,12 +43,11 @@ func main() {
 	}
 	defer firestoreClient.Close()
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Username: redisUser,
-		Password: redisPassword,
-		DB:       redisDB,
-	})
+	redisConfig, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rdb := redis.NewClient(redisConfig)
 
 	ks, err := rdb.SMembers(ctx, redisSetKey).Result()
 	if err != nil {
@@ -70,15 +68,13 @@ func main() {
 
 		expireAt := time.Now()
 
-		if ts, ok := doc.Data()[firestoreExpireKey].(time.Time); ok {
+		if ts, ok := doc.Data()[firestoreExpireKey].(time.Time); ok && !ts.IsZero() {
 			expireAt = ts
 		}
 
 		expireAt = expireAt.Add(expireIncrement)
 
-		if _, err := firestoreClient.Collection(firestoreCollection).Doc(key).Set(ctx, map[string]any{
-			firestoreExpireKey: expireAt,
-		}, firestore.MergeAll); err != nil {
+		if _, err := firestoreClient.Collection(firestoreCollection).Doc(key).Set(ctx, map[string]any{firestoreExpireKey: expireAt}, firestore.MergeAll); err != nil {
 			log.Fatal(err)
 		}
 	}
