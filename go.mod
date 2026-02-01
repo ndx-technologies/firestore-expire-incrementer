@@ -3,7 +3,7 @@ module github.com/ndx-technologies/firestore-expire-incrementer
 go 1.25
 
 require (
-	cloud.google.com/go/firestore v1.20.0
+	cloud.google.com/go/firestore v1.21.0
 	github.com/redis/go-redis/v9 v9.17.2
 	google.golang.org/grpc v1.78.0
 )
